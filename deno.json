@@ -1,7 +1,7 @@
 {
   "name": "@p1n2o/livetube",
   "description": "Generate HSL live streams with fallback support.",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "author": {
     "name": "Manuel Pinto",
     "email": "manuel@pinto.dev",
