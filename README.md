@@ -58,11 +58,11 @@ Download the latest release from the
 [releases page](https://github.com/p1n2o/livetube/releases) and run the
 appropriate binary for your platform:
 
-- **Linux x86_64**: `livetube-linux-x86_64`
-- **Linux ARM64**: `livetube-linux-aarch64`
-- **macOS x86_64**: `livetube-macos-x86_64`
-- **macOS ARM64**: `livetube-macos-aarch64`
-- **Windows x86_64**: `livetube-windows-x86_64.exe`
+- **[Linux x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-unknown-linux-gnu)**: `livetube-x86_64-unknown-linux-gnu`
+- **[Linux ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-unknown-linux-gnu)**: `livetube-aarch64-unknown-linux-gnu`
+- **[macOS x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-apple-darwin)**: `livetube-x86_64-apple-darwin`
+- **[macOS ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-apple-darwin)**: `livetube-aarch64-apple-darwin`
+- **[Windows x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-pc-windows-msvc.exe)**: `livetube-x86_64-pc-windows-msvc.exe`
 
 Make the binary executable (Linux/macOS):
 
