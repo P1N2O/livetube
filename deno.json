@@ -1,0 +1,33 @@
+{
+  "name": "@p1n2o/livetube",
+  "description": "Generate HSL live streams with fallback support.",
+  "version": "0.0.0",
+  "author": {
+    "name": "Manuel Pinto",
+    "email": "manuel@pinto.dev",
+    "url": "https://manuel.pinto.dev"
+  },
+  "tasks": {
+    "dev": "deno run --watch -A main.ts",
+    "format": "deno fmt",
+    "lint": "deno lint",
+    "compile": "deno compile -A main.ts",
+    "compile:all": "deno run -A release.ts build",
+    "release": "deno run -A release.ts"
+  },
+  "imports": {
+    "@std/cli": "jsr:@std/cli@^1.0.22",
+    "hono": "jsr:@hono/hono@4.9.9",
+    "@std/dotenv": "jsr:@std/dotenv@0.225.5",
+    "@std/cache": "jsr:@std/cache@0.2.0",
+    "@std/datetime": "jsr:@std/datetime@0.225.5",
+    "user-agents": "npm:user-agents@^1.1.667",
+    "youtube-po-token-generator": "npm:youtube-po-token-generator@^0.6.0",
+    "youtubei.js": "npm:youtubei.js@^15.1.1"
+  },
+  "exports": {},
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  }
+}
