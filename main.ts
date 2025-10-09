@@ -9,7 +9,7 @@ import "@std/dotenv/load";
 import { format } from "@std/fmt/bytes";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
-import { every } from "hono/combine";
+import { every, some } from "hono/combine";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/deno";
@@ -167,14 +167,17 @@ app.use(
       origin: Deno.env.get("CORS_ORIGIN") || "*",
       allowMethods: ["GET", "POST", "OPTIONS"],
     }),
-    bearerAuth({
-      verifyToken: (token: string) => {
-        if (!API_KEY) return true;
-        return token.includes(API_KEY);
-      },
-      prefix: "",
-      headerName: "User-Agent",
-    }),
+    some(
+      () => !API_KEY,
+      bearerAuth({
+        verifyToken: (token: string) => {
+          if (!API_KEY) return true;
+          return token.includes(API_KEY);
+        },
+        prefix: "",
+        headerName: "User-Agent",
+      }),
+    ),
   ),
 );
 
