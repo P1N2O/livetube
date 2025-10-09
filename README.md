@@ -58,11 +58,16 @@ Download the latest release from the
 [releases page](https://github.com/p1n2o/livetube/releases) and run the
 appropriate binary for your platform:
 
-- **[Linux x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-unknown-linux-gnu)**: `livetube-x86_64-unknown-linux-gnu`
-- **[Linux ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-unknown-linux-gnu)**: `livetube-aarch64-unknown-linux-gnu`
-- **[macOS x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-apple-darwin)**: `livetube-x86_64-apple-darwin`
-- **[macOS ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-apple-darwin)**: `livetube-aarch64-apple-darwin`
-- **[Windows x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-pc-windows-msvc.exe)**: `livetube-x86_64-pc-windows-msvc.exe`
+- **[Linux x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-unknown-linux-gnu)**:
+  `livetube-x86_64-unknown-linux-gnu`
+- **[Linux ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-unknown-linux-gnu)**:
+  `livetube-aarch64-unknown-linux-gnu`
+- **[macOS x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-apple-darwin)**:
+  `livetube-x86_64-apple-darwin`
+- **[macOS ARM64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-aarch64-apple-darwin)**:
+  `livetube-aarch64-apple-darwin`
+- **[Windows x86_64](https://github.com/P1N2O/livetube/releases/latest/download/livetube-x86_64-pc-windows-msvc.exe)**:
+  `livetube-x86_64-pc-windows-msvc.exe`
 
 Make the binary executable (Linux/macOS):
 
@@ -271,11 +276,4 @@ Report bugs or request features via
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 for details.
 
-## Support
-
-For support, email manuel@pinto.dev or open an issue on GitHub.
-
 ---
-
-**Note**: This tool interacts with YouTube's API and is subject to their terms
-of service. Use responsibly.
