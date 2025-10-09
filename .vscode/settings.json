@@ -1,4 +1,6 @@
 {
+  "oxc.enable": false,
+  "biome.enabled": false,
   "deno.enable": true,
   "editor.inlayHints.enabled": "off",
   "editor.formatOnSave": true,
