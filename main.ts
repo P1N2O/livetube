@@ -1,7 +1,14 @@
-import { type MemoizationCacheResult, memoize, TtlCache } from "@std/cache";
+import {
+  LruCache,
+  type MemoizationCacheResult,
+  memoize,
+  TtlCache,
+} from "@std/cache";
 import { MINUTE } from "@std/datetime";
 import "@std/dotenv/load";
+import { format } from "@std/fmt/bytes";
 import { Hono } from "hono";
+import { bearerAuth } from "hono/bearer-auth";
 import { every } from "hono/combine";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
@@ -13,20 +20,33 @@ import { Innertube, UniversalCache } from "youtubei.js";
 
 const app = new Hono();
 
-const HOST = Deno.env.get("HOST") || Deno.env.get("HOSTNAME") || "127.0.0.1";
-const PORT = Number(Deno.env.get("PORT")) || 3000;
-
+const BASE_URL = new URL(
+  `http://${Deno.env.get("HOSTNAME") || "localhost"}:${
+    Deno.env.get("PORT") || 3000
+  }`,
+);
 const API_KEY = Deno.env.get("API_KEY");
 
-const CACHE_TTL = Number.isNaN(Number(Deno.env.get("CACHE_TTL")))
-  ? 30
-  : Number(Deno.env.get("CACHE_TTL"));
-const USE_CACHE = CACHE_TTL > 0;
-const CACHE_DIR = Deno.env.get("CACHE_DIR") || "./.cache";
-
-const TTL_CACHE = new TtlCache<string, MemoizationCacheResult<any>>(
-  CACHE_TTL * MINUTE,
+const STREAM_VALIDATION_CACHE_TTL = Number(
+  Deno.env.get("STREAM_VALIDATION_CACHE_TTL") || 30,
 );
+// Stream Validation Cache (LRU)
+const STREAM_VALIDATION_CACHE = new LruCache<
+  string,
+  MemoizationCacheResult<Promise<string | undefined>>
+>(STREAM_VALIDATION_CACHE_TTL * MINUTE);
+
+const VIDEO_INFO_CACHE_SIZE = Number(
+  Deno.env.get("VIDEO_INFO_CACHE_SIZE") || 1_00_000,
+);
+// Video Info Cache (TTL)
+const VIDEO_INFO_CACHE = new TtlCache<
+  string,
+  MemoizationCacheResult<Promise<string | undefined>>
+>(VIDEO_INFO_CACHE_SIZE * MINUTE);
+
+const USE_CACHE = !!(STREAM_VALIDATION_CACHE_TTL || VIDEO_INFO_CACHE_SIZE);
+const CACHE_DIR = Deno.env.get("CACHE_DIR") || "./.cache";
 
 const USER_AGENT = new UserAgent();
 const { poToken: po_token, visitorData: visitor_data } = await generate();
@@ -49,49 +69,60 @@ const allowedParams = ["v", "c", "x"] as const;
 type T_Params = { type: (typeof allowedParams)[number]; value: string };
 
 // -----------------------------
-// Memoized stream validator
+// Stream validator (memoized)
 // -----------------------------
 const validateStream = memoize(
-  async (param: T_Params): Promise<string | undefined> => {
+  async (url: string): Promise<string | undefined> => {
     try {
-      // HEAD is faster than GET for validation
-      const response = await fetch(param.value, { method: "HEAD" }).catch(() =>
-        fetch(param.value, { method: "GET" })
+      console.log(`🔍 Validating stream: ${url}`);
+      const response = await fetch(url, { method: "HEAD" }).catch(() =>
+        fetch(url, { method: "GET" })
       );
-      if (response.status < 400) return param.value;
+      if (response.status < 400) return url;
     } catch (error) {
-      console.error(`-> ❌ Failed to resolve stream: ${param.value}\n${error}`);
+      console.error(`-> ❌ Failed to resolve stream: ${url}\n${error}`);
     }
   },
-  { cache: USE_CACHE ? TTL_CACHE : undefined },
+  {
+    cache: USE_CACHE ? STREAM_VALIDATION_CACHE : undefined,
+    getKey: (url: string) => `stream:${url}`,
+  },
 );
 
 // -----------------------------
-// Video ID resolver
-// -----------------------------
-async function getVideoId(url: string): Promise<string | undefined> {
-  try {
-    return (await session.resolveURL(url))?.payload?.videoId as
-      | string
-      | undefined;
-  } catch (error) {
-    console.error(`-> ❌ Failed to get videoId for ${url}\n${error}`);
-  }
-}
-
-// -----------------------------
-// Video Info resolver
+// Video info (memoized)
 // -----------------------------
 const getVideoInfo = memoize(
   async (vid: string): Promise<string | undefined> => {
     try {
+      console.log(`🎥 Fetching info for video: ${vid}`);
       const info = await session.getInfo(vid);
       return info?.streaming_data?.hls_manifest_url;
     } catch (error) {
       console.error(`-> ❌ Failed to fetch info for video: ${vid}\n${error}`);
     }
   },
-  { cache: USE_CACHE ? TTL_CACHE : undefined },
+  {
+    cache: USE_CACHE ? VIDEO_INFO_CACHE : undefined,
+    getKey: (vid: string) => `video:${vid}`,
+  },
+);
+
+const getVideoId = memoize(
+  async (url: string): Promise<string | undefined> => {
+    try {
+      console.log(`🔗 Resolving URL: ${url}`);
+      return (await session.resolveURL(url))?.payload?.videoId as
+        | string
+        | undefined;
+    } catch (error) {
+      console.error(`-> ❌ Failed to get videoId for ${url}\n${error}`);
+    }
+  },
+  {
+    cache: USE_CACHE ? VIDEO_INFO_CACHE : undefined,
+    getKey: (url: string) => `resolve:${url}`,
+  },
 );
 
 // -----------------------------
@@ -100,18 +131,26 @@ const getVideoInfo = memoize(
 async function getHslStream(param: T_Params): Promise<string | undefined> {
   try {
     if (param.type === "x") {
-      return await validateStream(param);
+      // Direct URL validation
+      return await validateStream(param.value);
     }
 
-    const vid = param.type === "v"
-      ? param.value
-      : await getVideoId(`https://www.youtube.com/${param.value}/live`);
-    if (!vid) return undefined;
+    if (param.type === "v") {
+      // Direct video ID
+      return await getVideoInfo(param.value);
+    }
 
-    return await getVideoInfo(vid);
+    if (param.type === "c") {
+      // Channel/URL resolution
+      const vid = await getVideoId(
+        `https://www.youtube.com/${param.value}/live`,
+      );
+      if (!vid) return undefined;
+      return await getVideoInfo(vid);
+    }
   } catch (error) {
     console.error(
-      `-> ❌ Failed to get HSL stream for param: ${param.value}\n${error}`,
+      `-> ❌ Failed to get HSL stream for ${param.type}:${param.value}\n${error}`,
     );
   }
 }
@@ -120,13 +159,21 @@ async function getHslStream(param: T_Params): Promise<string | undefined> {
 // Middleware
 // -----------------------------
 app.use(
-  "/*",
+  "*",
   every(
     logger(),
     compress(),
     cors({
       origin: Deno.env.get("CORS_ORIGIN") || "*",
       allowMethods: ["GET", "POST", "OPTIONS"],
+    }),
+    bearerAuth({
+      verifyToken: (token: string) => {
+        if (!API_KEY) return true;
+        return token.includes(API_KEY);
+      },
+      prefix: "",
+      headerName: "User-Agent",
     }),
   ),
 );
@@ -136,7 +183,7 @@ if (Deno.args.includes("--health")) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000); // 5 sec timeout
 
-    const res = await fetch(`http://${HOST}:${PORT}/health`, {
+    const res = await fetch(new URL("/health", BASE_URL), {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -167,18 +214,6 @@ app.get("/favicon.ico", serveStatic({ path: "./favicon.ico" }));
 // Main endpoint
 // -----------------------------
 app.get("/", async (c) => {
-  const hasAccess = API_KEY
-    ? c.req.header("Authorization") === `Bearer ${API_KEY}` ||
-      c.req.header("User-Agent")?.includes(API_KEY)
-    : true;
-
-  if (!hasAccess) {
-    return c.json(
-      { success: false, error: "Unauthorized. Missing API key!" },
-      401,
-    );
-  }
-
   const url = new URL(c.req.url);
   const params: T_Params[] = [];
 
@@ -191,12 +226,27 @@ app.get("/", async (c) => {
   }
 
   if (!params.length) {
-    return c.json({ success: true, message: "Server running!" }, 200);
+    return c.json({
+      message: "Server running!",
+      memory: Object.fromEntries(
+        Object.entries(Deno.memoryUsage()).map((
+          [key, value],
+        ) => [key, format(value)]),
+      ),
+      cache: USE_CACHE
+        ? {
+          streamValidation: STREAM_VALIDATION_CACHE.size,
+          videoInfo: VIDEO_INFO_CACHE.size,
+          total: STREAM_VALIDATION_CACHE.size + VIDEO_INFO_CACHE.size,
+        }
+        : undefined,
+    }, 200);
   }
 
   for (const param of params) {
     const streamUrl = await getHslStream(param);
     if (streamUrl) {
+      console.log(`✅ Stream found for ${param.type}:${param.value}`);
       return c.redirect(streamUrl);
     }
   }
@@ -204,37 +254,19 @@ app.get("/", async (c) => {
   return c.json({ success: false, error: "No valid stream found!" }, 404);
 });
 
-// -----------------------------
-// Clear cache endpoint
-// -----------------------------
-app.get("/clear-cache", async (c) => {
-  const hasAccess = API_KEY
-    ? c.req.header("Authorization") === `Bearer ${API_KEY}X` ||
-      c.req.header("User-Agent")?.includes(`${API_KEY}X`)
-    : true;
-
-  if (!hasAccess) {
-    return c.json(
-      { success: false, error: "Unauthorized. Missing API key!" },
-      401,
-    );
-  }
-
-  if (TTL_CACHE.size) {
-    TTL_CACHE.clear();
-    return c.json({ success: true, message: "Cache cleared!" }, 200);
-  }
-
-  return c.json(
-    { success: true, error: "Nothing to clear. Cache is empty!" },
-    200,
-  );
-});
-
 Deno.serve(
   {
-    hostname: HOST,
-    port: PORT,
+    hostname: BASE_URL.hostname,
+    port: Number(BASE_URL.port),
+    onListen: () => {
+      console.log(`\n🚀 Server is running on ${BASE_URL}`);
+      console.log(
+        `🔐 Authentication: ${API_KEY ? `ENABLED (${API_KEY})` : "DISABLED"}`,
+      );
+      console.log(
+        `💾 Caching: ${USE_CACHE ? "ENABLED" : "DISABLED"}`,
+      );
+    },
   },
   app.fetch,
 );
