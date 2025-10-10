@@ -75,10 +75,29 @@ const validateStream = memoize(
   async (url: string): Promise<string | undefined> => {
     try {
       console.log(`🔍 Validating stream: ${url}`);
-      const response = await fetch(url, { method: "HEAD" }).catch(() =>
-        fetch(url, { method: "GET" })
+      const urlObj = new URL(url);
+      const headers: Record<string, string> = {
+        "user-agent": USER_AGENT.toString(),
+      };
+      const customHeaderKey = Deno.env.get("CUSTOM_X_HEADER") ||
+        "custom-header";
+      const customHeaders = urlObj.searchParams.get(customHeaderKey);
+      if (customHeaders) {
+        customHeaders.split(",").forEach((pair) => {
+          const [key, ...valueParts] = pair.split(":");
+          if (key && valueParts.length) {
+            headers[key] = valueParts.join(":");
+          }
+        });
+        urlObj.searchParams.delete(customHeaderKey);
+      }
+      const cleanUrl = urlObj.toString();
+      const options: RequestInit = { method: "HEAD" };
+      if (Object.keys(headers).length > 0) options.headers = headers;
+      const response = await fetch(cleanUrl, options).catch(() =>
+        fetch(cleanUrl, { ...options, method: "GET" })
       );
-      if (response.status < 400) return url;
+      if (response.status < 400) return cleanUrl;
     } catch (error) {
       console.error(`-> ❌ Failed to resolve stream: ${url}\n${error}`);
     }
