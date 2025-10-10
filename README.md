@@ -97,10 +97,11 @@ services:
     environment:
       HOST: "0.0.0.0" # Binding host (Default: 127.0.0.1)
       PORT: "3000" # Port inside container (Default: 3000)
-      API_KEY: "your-api-key" # Optional: set your API key for auth (passed as Bearer token or User-Agent header)
-      CACHE_TTL: "30" # Cache TTL in minutes (Default: 30)
+      # API_KEY: "your-api-key" # Optional: set your API key (Default: No Key/Auth Disabled)
+      STREAM_VALIDATION_CACHE_TTL: 30 # The maximum time to live for entries in the cache (Default: 30)
+      VIDEO_INFO_CACHE_SIZE: 1_00_000 # The maximum number of entries to store in the cache (Default: 1_00_000)
       CACHE_DIR: "/data/cache" # Path for cache (Default: ./.cache)
-      CORS_ORIGIN: "*" # Allowed CORS origins (Default: *)
+    # CORS_ORIGIN: "*" # Allowed CORS origins (Default: *)
     ports:
       - "3000:3000"
     healthcheck:
