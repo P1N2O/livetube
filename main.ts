@@ -1,12 +1,8 @@
-import {
-  LruCache,
-  type MemoizationCacheResult,
-  memoize,
-  TtlCache,
-} from "@std/cache";
+import { type MemoizationCacheResult, memoize, TtlCache } from "@std/cache";
 import { MINUTE } from "@std/datetime";
 import "@std/dotenv/load";
-import { format } from "@std/fmt/bytes";
+import { format as formatBytes } from "@std/fmt/bytes";
+import { format as formatDuration } from "@std/fmt/duration";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { every, some } from "hono/combine";
@@ -27,25 +23,19 @@ const BASE_URL = new URL(
 );
 const API_KEY = Deno.env.get("API_KEY");
 
-const STREAM_VALIDATION_CACHE_TTL = Number(
-  Deno.env.get("STREAM_VALIDATION_CACHE_TTL") || 30,
-);
-// Stream Validation Cache (LRU)
-const STREAM_VALIDATION_CACHE = new LruCache<
-  string,
-  MemoizationCacheResult<Promise<string | undefined>>
->(STREAM_VALIDATION_CACHE_TTL * MINUTE);
+const MEMOIZATION_TTL = Number(
+  Deno.env.get("MEMOIZATION_TTL") || 30,
+) * MINUTE;
+const MEMOIZE = !!MEMOIZATION_TTL;
+const MEMOIZATION_CACHE:
+  | TtlCache<string, MemoizationCacheResult<Promise<string | undefined>>>
+  | undefined = MEMOIZE
+    ? new TtlCache<
+      string,
+      MemoizationCacheResult<Promise<string | undefined>>
+    >(MEMOIZATION_TTL)
+    : undefined;
 
-const VIDEO_INFO_CACHE_SIZE = Number(
-  Deno.env.get("VIDEO_INFO_CACHE_SIZE") || 1_00_000,
-);
-// Video Info Cache (TTL)
-const VIDEO_INFO_CACHE = new TtlCache<
-  string,
-  MemoizationCacheResult<Promise<string | undefined>>
->(VIDEO_INFO_CACHE_SIZE * MINUTE);
-
-const USE_CACHE = !!(STREAM_VALIDATION_CACHE_TTL || VIDEO_INFO_CACHE_SIZE);
 const CACHE_DIR = Deno.env.get("CACHE_DIR") || "./.cache";
 
 const USER_AGENT = new UserAgent();
@@ -61,7 +51,7 @@ const session = await Innertube.create({
   device_category: USER_AGENT?.data?.deviceCategory === "desktop"
     ? "desktop"
     : "mobile",
-  cache: USE_CACHE ? new UniversalCache(true, CACHE_DIR) : undefined,
+  cache: MEMOIZE ? new UniversalCache(true, CACHE_DIR) : undefined,
 });
 
 // Allowed params
@@ -69,7 +59,7 @@ const allowedParams = ["v", "c", "x"] as const;
 type T_Params = { type: (typeof allowedParams)[number]; value: string };
 
 // -----------------------------
-// Stream validator (memoized)
+// Stream validator
 // -----------------------------
 const validateStream = memoize(
   async (url: string): Promise<string | undefined> => {
@@ -103,44 +93,53 @@ const validateStream = memoize(
     }
   },
   {
-    cache: USE_CACHE ? STREAM_VALIDATION_CACHE : undefined,
-    getKey: (url: string) => `stream:${url}`,
+    cache: MEMOIZATION_CACHE,
+    getKey: (url: string) => `x:${url}`,
   },
 );
 
 // -----------------------------
-// Video info (memoized)
+// Video info
 // -----------------------------
 const getVideoInfo = memoize(
   async (vid: string): Promise<string | undefined> => {
     try {
-      console.log(`🎥 Fetching info for video: ${vid}`);
+      console.log(`📺 Fetching HSL stream for video: ${vid}`);
       const info = await session.getInfo(vid);
       return info?.streaming_data?.hls_manifest_url;
     } catch (error) {
-      console.error(`-> ❌ Failed to fetch info for video: ${vid}\n${error}`);
+      console.error(
+        `-> ❌ Failed to fetch HSL stream for video: ${vid}\n${error}`,
+      );
     }
   },
   {
-    cache: USE_CACHE ? VIDEO_INFO_CACHE : undefined,
-    getKey: (vid: string) => `video:${vid}`,
+    cache: MEMOIZATION_CACHE,
+    getKey: (vid: string) => `v:${vid}`,
   },
 );
 
+// -----------------------------
+// Video ID resolver
+// -----------------------------
 const getVideoId = memoize(
-  async (url: string): Promise<string | undefined> => {
+  async (channelHandle: string): Promise<string | undefined> => {
     try {
-      console.log(`🔗 Resolving URL: ${url}`);
-      return (await session.resolveURL(url))?.payload?.videoId as
+      console.log(`🔗 Resolving live stream for channel: ${channelHandle}`);
+      return (await session.resolveURL(
+        `https://www.youtube.com/${channelHandle}/live`,
+      ))?.payload?.videoId as
         | string
         | undefined;
     } catch (error) {
-      console.error(`-> ❌ Failed to get videoId for ${url}\n${error}`);
+      console.error(
+        `-> ❌ Failed to resolve live video for ${channelHandle}\n${error}`,
+      );
     }
   },
   {
-    cache: USE_CACHE ? VIDEO_INFO_CACHE : undefined,
-    getKey: (url: string) => `resolve:${url}`,
+    cache: MEMOIZATION_CACHE,
+    getKey: (url: string) => `c:${url}`,
   },
 );
 
@@ -161,9 +160,7 @@ async function getHslStream(param: T_Params): Promise<string | undefined> {
 
     if (param.type === "c") {
       // Channel/URL resolution
-      const vid = await getVideoId(
-        `https://www.youtube.com/${param.value}/live`,
-      );
+      const vid = await getVideoId(param.value.toLowerCase());
       if (!vid) return undefined;
       return await getVideoInfo(vid);
     }
@@ -180,14 +177,21 @@ async function getHslStream(param: T_Params): Promise<string | undefined> {
 app.use(
   "*",
   every(
-    logger(),
+    logger((message: string, ...rest: string[]) => {
+      console.log(
+        `${message.startsWith("<-- ") ? "\n" : ""}${message}`,
+        ...rest,
+      );
+    }),
     compress(),
     cors({
       origin: Deno.env.get("CORS_ORIGIN") || "*",
       allowMethods: ["GET", "POST", "OPTIONS"],
     }),
     some(
+      // Auth Disabled
       () => !API_KEY,
+      // Auth via User-Agent header
       bearerAuth({
         verifyToken: (token: string) => {
           if (!API_KEY) return true;
@@ -196,6 +200,8 @@ app.use(
         prefix: "",
         headerName: "User-Agent",
       }),
+      // Auth via Authorization header
+      bearerAuth({ token: API_KEY || "" }),
     ),
   ),
 );
@@ -253,22 +259,23 @@ app.get("/", async (c) => {
       memory: Object.fromEntries(
         Object.entries(Deno.memoryUsage()).map((
           [key, value],
-        ) => [key, format(value)]),
+        ) => [key, formatBytes(value)]),
       ),
-      cache: USE_CACHE
-        ? {
-          streamValidation: STREAM_VALIDATION_CACHE.size,
-          videoInfo: VIDEO_INFO_CACHE.size,
-          total: STREAM_VALIDATION_CACHE.size + VIDEO_INFO_CACHE.size,
-        }
-        : undefined,
+      authentication: {
+        enabled: API_KEY ? "Enabled" : "Disabled",
+        header: API_KEY ? "Authorization / User-Agent" : "None",
+      },
+      memoization: {
+        enabled: MEMOIZATION_CACHE ? "Enabled" : "Disabled",
+        entries: MEMOIZATION_CACHE?.size,
+      },
     }, 200);
   }
 
   for (const param of params) {
     const streamUrl = await getHslStream(param);
     if (streamUrl) {
-      console.log(`✅ Stream found for ${param.type}:${param.value}`);
+      console.log(`✅ HSL Stream found!`);
       return c.redirect(streamUrl);
     }
   }
@@ -281,12 +288,23 @@ Deno.serve(
     hostname: BASE_URL.hostname,
     port: Number(BASE_URL.port),
     onListen: () => {
-      console.log(`\n🚀 Server is running on ${BASE_URL}`);
+      console.log(
+        `\n🚀 Server started at ${new Date()}\nListening on ${BASE_URL}\n`,
+      );
       console.log(
         `🔐 Authentication: ${API_KEY ? `ENABLED (${API_KEY})` : "DISABLED"}`,
       );
       console.log(
-        `💾 Caching: ${USE_CACHE ? "ENABLED" : "DISABLED"}`,
+        `💾 Memoization: ${
+          MEMOIZE
+            ? `ENABLED (${
+              formatDuration(MEMOIZATION_TTL, {
+                style: "full",
+                ignoreZero: true,
+              })
+            })`
+            : "DISABLED"
+        }`,
       );
     },
   },
