@@ -112,6 +112,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+          pattern: livetube-*
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
