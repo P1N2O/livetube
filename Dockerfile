@@ -5,6 +5,7 @@ RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:alpine
 WORKDIR /app
+LABEL org.opencontainers.image.source="https://github.com/P1N2O/livetube"
 
 # Non-root user for security
 RUN addgroup -S livetube && adduser -S livetube -G livetube \
