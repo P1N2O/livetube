@@ -22,6 +22,9 @@ const BASE_URL = new URL(
 );
 
 const API_KEY = Bun.env.API_KEY;
+const COOKIE = Bun.env.COOKIE;
+const PO_TOKEN = Bun.env.PO_TOKEN;
+const VISITOR_DATA = Bun.env.VISITOR_DATA;
 const CACHE_DIR = Bun.env.CACHE_DIR ?? "./.cache";
 const CUSTOM_HEADER_KEY = Bun.env.CUSTOM_X_HEADER ?? "custom-header";
 const MEMOIZATION_TTL = Number(Bun.env.MEMOIZATION_TTL ?? 30) * MINUTE;
@@ -57,8 +60,9 @@ const session = await Innertube.create({
   lang: "en",
   location: "US",
   user_agent: userAgent.toString(),
-  po_token,
-  visitor_data,
+  cookie: COOKIE,
+  po_token: PO_TOKEN ?? po_token,
+  visitor_data: VISITOR_DATA ?? visitor_data,
   device_category:
     userAgent.data?.deviceCategory === "desktop" ? "desktop" : "mobile",
   cache: MEMOIZE ? new UniversalCache(true, CACHE_DIR) : undefined,
