@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch ./index.ts",
-    "build": "bun run build.ts"
+    "build": "bun run build.ts",
+    "taze": "bunx taze -frwu"
   },
   "dependencies": {
     "@std/cache": "npm:@jsr/std__cache",
