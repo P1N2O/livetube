@@ -45,7 +45,7 @@ jobs:
         run: |
           bun build --compile --minify \
             --target=${{ matrix.target }} \
-            ./server.ts \
+            ./index.ts \
             --outfile ${{ matrix.outfile }}
 
       - name: Upload artifact
