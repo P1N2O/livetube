@@ -88,25 +88,18 @@ Or use Docker Compose:
 ```yaml
 services:
   livetube:
-    image: p1n2o/livetube:latest
+    image: ghcr.io/p1n2o/livetube:latest
     container_name: livetube
-    environment:
-      HOST: "0.0.0.0" # Binding host (Default: 127.0.0.1)
-      PORT: "3000" # Port inside container (Default: 3000)
-      # API_KEY: "your-api-key" # Optional: set your API key (Default: No Key/Auth Disabled)
-      # MEMOIZATION_TTL=30 # The maximum time (in minutes) to memoize requests.
-      # CACHE_DIR: "/data/cache" # Path for cache (Default: ./.cache)
-      # CORS_ORIGIN: "*" # Allowed CORS origins (Default: *)
+    # environment:
+    # HOST: "0.0.0.0" # Binding host (Default: 127.0.0.1)
+    # PORT: "3000" # Port inside container (Default: 3000)
+    # API_KEY: "your-api-key" # Optional: set your API key (Default: No Key/Auth Disabled)
+    # MEMOIZATION_TTL=30 # The maximum time (in minutes) to memoize requests.
+    # CORS_ORIGIN: "*" # Allowed CORS origins (Default: *)
     ports:
       - "3000:3000"
-    healthcheck:
-      test: ["CMD", "./livetube", "--health"]
-      start_period: 10s
-      interval: 60s
-      timeout: 10s
-      retries: 3
     volumes:
-      - ./data/cache:/data/cache # Persist YT session and cached routes across restarts
+      - ./data/cache:/app/cache # Persist YT session and cached routes across restarts
     restart: unless-stopped
 ```
 
