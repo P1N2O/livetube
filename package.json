@@ -3,6 +3,19 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "author": {
+    "name": "Manuel Pinto",
+    "email": "manuel@pinto.dev",
+    "url": "https://manuel.pinto.dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/P1N2O/livetube"
+  },
+  "bugs": {
+    "url": "https://github.com/P1N2O/livetube/issues"
+  },
+  "license": "MIT",
   "scripts": {
     "dev": "bun run --watch ./index.ts",
     "build": "bun run build.ts",
