@@ -2,6 +2,7 @@ import { type MemoizationCacheResult, memoize, TtlCache } from "@std/cache";
 import { MINUTE } from "@std/datetime";
 import { format as formatBytes } from "@std/fmt/bytes";
 import { format as formatDuration } from "@std/fmt/duration";
+import { spawn } from "bun";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { every, some } from "hono/combine";
@@ -9,8 +10,6 @@ import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import UserAgent from "user-agents";
-import { generate } from "youtube-po-token-generator";
-import { Innertube, UniversalCache } from "youtubei.js";
 
 // ─────────────────────────────────────────────
 // Config
@@ -21,10 +20,6 @@ const BASE_URL = new URL(
 );
 
 const API_KEY = Bun.env.API_KEY;
-const COOKIE = Bun.env.COOKIE;
-const PO_TOKEN = Bun.env.PO_TOKEN;
-const VISITOR_DATA = Bun.env.VISITOR_DATA;
-const CACHE_DIR = Bun.env.CACHE_DIR ?? "./.cache";
 const CUSTOM_HEADER_KEY = Bun.env.CUSTOM_X_HEADER ?? "custom-header";
 const MEMOIZATION_TTL = Number(Bun.env.MEMOIZATION_TTL ?? 30) * MINUTE;
 const MEMOIZE = MEMOIZATION_TTL > 0;
@@ -48,24 +43,7 @@ const ALLOWED_PARAMS = ["v", "c", "x"] as const;
 type ParamType = (typeof ALLOWED_PARAMS)[number];
 type Param = { type: ParamType; value: string };
 
-// ─────────────────────────────────────────────
-// YT session
-// ─────────────────────────────────────────────
-
 const userAgent = new UserAgent();
-const { poToken: po_token, visitorData: visitor_data } = await generate();
-
-const session = await Innertube.create({
-  lang: "en",
-  location: "US",
-  user_agent: userAgent.toString(),
-  cookie: COOKIE,
-  po_token: PO_TOKEN ?? po_token,
-  visitor_data: VISITOR_DATA ?? visitor_data,
-  device_category:
-    userAgent.data?.deviceCategory === "desktop" ? "desktop" : "mobile",
-  cache: MEMOIZE ? new UniversalCache(true, CACHE_DIR) : undefined,
-});
 
 // ─────────────────────────────────────────────
 // Stream resolvers (memoized)
@@ -106,36 +84,39 @@ const validateStream = memoize(
   { cache, getKey: (url) => `x:${url}` },
 );
 
-const getVideoInfo = memoize(
-  async (videoId: string): Promise<string | undefined> => {
+const getStream = memoize(
+  async (url: string): Promise<string | undefined> => {
     try {
-      console.log(`📺 Fetching HLS stream for video: ${videoId}`);
-      const info = await session.getInfo(videoId);
-      return info?.streaming_data?.hls_manifest_url;
+      console.log(`📺 Fetching HLS stream for: ${url}`);
+
+      const proc = spawn([
+        "yt-dlp",
+        "--js-runtimes",
+        "bun:/usr/local/bin/bun",
+        "--quiet",
+        "--no-warnings",
+        "--no-progress",
+        "--no-update",
+        "-f",
+        "best",
+        "-g",
+        url,
+      ]);
+
+      const stdout = await new Response(proc.stdout).text();
+
+      const exitCode = await proc.exited;
+
+      if (exitCode !== 0) {
+        throw new Error(`yt-dlp exited with ${exitCode}`);
+      }
+
+      return stdout.trim().split("\n")[0];
     } catch (error) {
-      console.error(
-        `-> ❌ Failed to fetch HLS stream for: ${videoId}\n${error}`,
-      );
+      console.error(`-> ❌ Failed to fetch HLS stream for: ${url}\n${error}`);
     }
   },
   { cache, getKey: (id) => `v:${id}` },
-);
-
-const getVideoId = memoize(
-  async (channelHandle: string): Promise<string | undefined> => {
-    try {
-      console.log(`🔗 Resolving live stream for channel: ${channelHandle}`);
-      const resolved = await session.resolveURL(
-        `https://www.youtube.com/${channelHandle}/live`,
-      );
-      return resolved?.payload?.videoId as string | undefined;
-    } catch (error) {
-      console.error(
-        `-> ❌ Failed to resolve live stream for: ${channelHandle}\n${error}`,
-      );
-    }
-  },
-  { cache, getKey: (handle) => `c:${handle}` },
 );
 
 // ─────────────────────────────────────────────
@@ -144,12 +125,13 @@ const getVideoId = memoize(
 
 async function resolveHlsStream(param: Param): Promise<string | undefined> {
   try {
-    if (param.type === "x") return await validateStream(param.value);
-    if (param.type === "v") return await getVideoInfo(param.value);
-    if (param.type === "c") {
-      const videoId = await getVideoId(param.value.toLowerCase());
-      return videoId ? await getVideoInfo(videoId) : undefined;
-    }
+    return param.type === "x"
+      ? await validateStream(param.value)
+      : getStream(
+          param.type === "v"
+            ? `https://www.youtube.com/watch?v=${param.value}`
+            : `https://www.youtube.com/${param.value}/live`,
+        );
   } catch (error) {
     console.error(
       `-> ❌ Failed to resolve HLS for ${param.type}:${param.value}\n${error}`,

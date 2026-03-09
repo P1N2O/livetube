@@ -26,9 +26,7 @@
     "@std/datetime": "npm:@jsr/std__datetime",
     "@std/fmt": "npm:@jsr/std__fmt",
     "hono": "^4.12.5",
-    "user-agents": "^1.1.669",
-    "youtube-po-token-generator": "^0.6.0",
-    "youtubei.js": "^16.0.1"
+    "user-agents": "^1.1.669"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -5,6 +5,4 @@ services:
     container_name: livetube
     ports:
       - "3000:3000"
-    volumes:
-      - ./data/cache:/app/cache # Persist YT session and cached routes across restarts
     restart: unless-stopped

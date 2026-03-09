@@ -7,6 +7,18 @@ FROM oven/bun:alpine
 WORKDIR /app
 LABEL org.opencontainers.image.source="https://github.com/P1N2O/livetube"
 
+# Install yt-dlp dynamically based on architecture
+RUN apk add --no-cache curl \
+ && ARCH="$(apk --print-arch)" \
+ && case "$ARCH" in \
+      x86_64)  YT_ARCH="yt-dlp_musllinux" ;; \
+      aarch64) YT_ARCH="yt-dlp_musllinux_aarch64" ;; \
+      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac \
+ && curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YT_ARCH}" \
+      -o /usr/local/bin/yt-dlp \
+ && chmod +x /usr/local/bin/yt-dlp
+
 # Non-root user for security
 RUN addgroup -S livetube && adduser -S livetube -G livetube \
   && mkdir -p .cache \

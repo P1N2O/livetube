@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Generate HSL live streams with fallback support. LiveTube is a lightweight web server that resolves live stream URLs to HLS (HTTP Live Streaming) format, providing a simple API for accessing live streams programmatically.
+Generate HSL live streams with fallback support. LiveTube is a lightweight web server that resolves live stream URLs to HLS (HTTP Live Streaming) format using [yt-dlp](https://github.com/yt-dlp/yt-dlp), providing a simple API for accessing live streams programmatically.
 
 ## Features
 
@@ -92,8 +92,6 @@ services:
     container_name: livetube
     ports:
       - "3000:3000"
-    volumes:
-      - ./data/cache:/app/cache # Persist YT session and cached routes across restarts
     restart: unless-stopped
 ```
 
@@ -128,11 +126,6 @@ services:
    curl http://localhost:3000/health
    ```
 
-4. **Clear Cache** (if authenticated):
-   ```bash
-   curl http://localhost:3000/clear-cache
-   ```
-
 ### Configuration
 
 Set environment variables to configure the server:
@@ -141,9 +134,9 @@ Set environment variables to configure the server:
 - `PORT`: Port number (default: `3000`)
 - `API_KEY`: Optional API key for authentication (Bearer token or User-Agent
   substring)
-- `CACHE_TTL`: Cache time-to-live in minutes (default: `30`, set to `0` to
+- `MEMOIZATION_TTL`: Cache time-to-live in minutes (default: `30`, set to `0` to
   disable)
-- `CACHE_DIR`: Directory for cache storage (default: `./.cache`)
+- `CUSTOM_X_HEADER`: Custom header key to pass to `x` requests
 - `CORS_ORIGIN`: Allowed CORS origins (default: `*`)
 
 ### Authentication
@@ -208,7 +201,6 @@ Report bugs or request features via
     - `c`: YouTube channel handle
     - `x`: Direct HLS URL for validation
 - `GET /health` - Health check endpoint
-- `GET /clear-cache` - Clear the cache (requires auth if API_KEY is set)
 
 ### Response Codes
 
