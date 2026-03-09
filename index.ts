@@ -4,7 +4,6 @@ import { format as formatBytes } from "@std/fmt/bytes";
 import { format as formatDuration } from "@std/fmt/duration";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
-import { serveStatic } from "hono/bun";
 import { every, some } from "hono/combine";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
@@ -191,8 +190,6 @@ app.use(
 );
 
 app.get("/health", (c) => c.json({ status: "ok" }));
-
-app.get("/favicon.ico", serveStatic({ path: "./favicon.ico" }));
 
 app.get("/", async (c) => {
   const { searchParams } = new URL(c.req.url);
