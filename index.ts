@@ -236,31 +236,6 @@ app.get("/", async (c) => {
 });
 
 // ─────────────────────────────────────────────
-// Health check CLI mode  (bun run server.ts --health)
-// ─────────────────────────────────────────────
-
-if (process.argv.includes("--health")) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5_000);
-
-  try {
-    const res = await fetch(new URL("/health", BASE_URL), {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    console.log(
-      res.ok ? "Health check OK" : "Health check failed:",
-      res.status,
-    );
-    process.exit(res.ok ? 0 : 1);
-  } catch (err) {
-    clearTimeout(timeout);
-    console.error("Health check failed:", err);
-    process.exit(1);
-  }
-}
-
-// ─────────────────────────────────────────────
 // Start server
 // ─────────────────────────────────────────────
 
