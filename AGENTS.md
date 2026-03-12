@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**LiveTube** is a lightweight web server that resolves live stream URLs to HLS (HTTP Live Streaming) format. It provides a simple API for accessing YouTube live streams programmatically.
+**LiveTube** is a lightweight web server that resolves live stream URLs to HLS (HTTP Live Streaming) format. It provides a simple API for accessing live streams programmatically.
 
 - **Repository**: https://github.com/P1N2O/livetube
 - **Author**: Manuel Pinto (manuel@pinto.dev)
@@ -13,43 +13,44 @@
 - **Runtime**: Bun
 - **Framework**: Hono (web framework)
 - **Language**: TypeScript
-- **YouTube API**: youtubei.js (Innertube)
-- **PO Token Generator**: youtube-po-token-generator
+- **YT-DLP**: yt-dlp
 
 ## Key Dependencies
 
-| Package                    | Purpose                      |
-| -------------------------- | ---------------------------- |
-| hono                       | Web framework                |
-| youtubei.js                | YouTube data fetching        |
-| youtube-po-token-generator | Generate YouTube PO tokens   |
-| @std/cache                 | TTL-based caching            |
-| @std/datetime              | Date/time utilities          |
-| @std/fmt                   | Formatting utilities         |
-| user-agents                | User-Agent string generation |
+| Package       | Purpose                       |
+| ------------- | ----------------------------- |
+| hono          | Web framework                 |
+| yt-dlp        | YT-DLP (Extract live streams) |
+| @std/cache    | TTL-based caching             |
+| @std/datetime | Date/time utilities           |
+| @std/fmt      | Formatting utilities          |
+| user-agents   | User-Agent string generation  |
 
 ## Project Structure
 
 ```
 .
 ├── index.ts          # Main application entry point
-├── build.ts          # Build script for cross-platform binaries
 ├── package.json      # Package manifest
 ├── tsconfig.json     # TypeScript configuration
 ├── Dockerfile        # Multi-stage Docker build
-├── docker-compose.yml
-├── README.md
-├── LICENSE
-└── .env              # Environment configuration
+├── compose.yaml      # Docker Compose configuration
+├── README.md         # Project documentation
+├── LICENSE           # License file
+├── .env              # Environment configuration
+└── script            # Utility scripts
+    ├── build.ts      # Build script for cross-platform binaries
+    └── release.ts    # GitHub release script
 ```
 
 ## Commands
 
-| Command         | Description                        |
-| --------------- | ---------------------------------- |
-| `bun run dev`   | Run in development mode with watch |
-| `bun run build` | Compile binaries for all platforms |
-| `bun run taze`  | Update dependencies                |
+| Command           | Description                        |
+| ----------------- | ---------------------------------- |
+| `bun run dev`     | Run in development mode with watch |
+| `bun run build`   | Compile binaries for all platforms |
+| `bun run taze`    | Update dependencies                |
+| `bun run release` | Create a GitHub release            |
 
 ## Environment Variables
 
@@ -60,9 +61,6 @@
 | API_KEY         | -             | Optional API key for authentication |
 | MEMOIZATION_TTL | 30            | Cache TTL in minutes (0 to disable) |
 | CUSTOM_X_HEADER | custom-header | Custom header parameter name        |
-| COOKIE          | -             | YouTube cookie                      |
-| PO_TOKEN        | -             | YouTube PO token                    |
-| VISITOR_DATA    | -             | YouTube visitor data                |
 | CORS_ORIGIN     | \*            | Allowed CORS origins                |
 
 ## API Endpoints
@@ -73,8 +71,8 @@ Main endpoint for stream resolution.
 
 **Query Parameters:**
 
-- `v`: YouTube video ID
-- `c`: YouTube channel handle
+- `v`: YT video ID
+- `c`: YT channel handle
 - `x`: Direct HLS URL for validation
 
 **Examples:**
@@ -122,14 +120,13 @@ The build script compiles binaries for:
 GitHub Actions workflow (`.github/workflows/release.yml`):
 
 - Triggers on version tags (`v*.*.*`)
-- Builds binaries for all platforms
-- Builds and pushes Docker images to GHCR
+- Builds compressed binaries for all platforms
 - Creates GitHub releases with artifacts
+- Builds and pushes Docker images to GHCR
 
 ## Development Notes
 
 - Uses Bun as the runtime and build tool
 - Strict TypeScript configuration
 - Memoization via @std/cache for stream URLs
-- YouTube session management with Innertube
 - Non-root user in Docker for security
