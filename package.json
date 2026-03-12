@@ -18,7 +18,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "bun run --watch ./index.ts",
-    "build": "bun run build.ts",
+    "build": "bun run script/build.ts",
+    "release": "bun run script/release.ts",
     "taze": "bunx taze -frwu"
   },
   "dependencies": {
