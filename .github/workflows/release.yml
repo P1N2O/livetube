@@ -48,6 +48,41 @@ jobs:
             ./index.ts \
             --outfile ${{ matrix.outfile }}
 
+      # - name: Install UPX
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y upx-ucl
+
+      - name: Install UPX
+        run: |
+          set -e
+          # Detect architecture
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64) UPX_ARCH="amd64_linux" ;;
+            aarch64|arm64) UPX_ARCH="arm64_linux" ;;
+            *)
+              echo "Unsupported architecture: $ARCH"
+              exit 1
+              ;;
+          esac
+
+          # Get latest release tag
+          VERSION=$(curl -s https://api.github.com/repos/upx/upx/releases/latest | grep '"tag_name"' | cut -d '"' -f4)
+          URL="https://github.com/upx/upx/releases/download/${VERSION}/upx-${VERSION#v}-${UPX_ARCH}.tar.xz"
+
+          echo "Downloading UPX $VERSION for $ARCH"
+          curl -L "$URL" -o upx.tar.xz
+          tar -xf upx.tar.xz
+
+          sudo mv upx-*/upx /usr/local/bin/upx
+
+          upx --version
+
+      - name: Compress binary with UPX
+        run: |
+          upx --best --lzma "${{ matrix.outfile }}" || echo "UPX not available or compression failed"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
