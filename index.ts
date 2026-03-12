@@ -103,7 +103,7 @@ const getStream = memoize(
         url,
       ]);
 
-      const stdout = await new Response(proc.stdout).text();
+      const stdout = await proc.stdout.text();
 
       const exitCode = await proc.exited;
 
