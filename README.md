@@ -1,8 +1,17 @@
 # LiveTube
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/P1N2O/livetube/actions/workflows/ci.yml/badge.svg)](https://github.com/P1N2O/livetube/actions/workflows/ci.yml)
 
-Generate HSL live streams with fallback support. LiveTube is a lightweight web server that resolves live stream URLs to HLS (HTTP Live Streaming) format using [yt-dlp](https://github.com/yt-dlp/yt-dlp), providing a simple API for accessing live streams programmatically.
+Generate HLS live streams with fallback support. LiveTube is a lightweight web
+server that resolves live stream URLs to HLS (HTTP Live Streaming) format using
+[yt-dlp](https://github.com/yt-dlp/yt-dlp), providing a simple API for
+accessing live streams programmatically.
+
+> **Rust port**: this project is a 1:1 Rust port of the original Bun/Hono
+> implementation — same endpoints, headers, caching semantics and log output,
+> compiled to a single static binary. It is a drop-in replacement for the
+> previous binaries, Docker image and release workflow.
 
 ## Features
 
@@ -16,6 +25,8 @@ Generate HSL live streams with fallback support. LiveTube is a lightweight web s
   Windows along with Docker support.
 - **API Key Protection**: Optional authentication for securing endpoints.
 - **CORS Support**: Configurable cross-origin resource sharing.
+- **Single Static Binary**: No runtime dependencies on Linux (musl), built with
+  `rustls` (no OpenSSL).
 
 ## Installation
 
@@ -59,13 +70,12 @@ Example (linux-x64):
 curl -L https://github.com/P1N2O/livetube/releases/latest/download/livetube-linux-x64 -o livetube && chmod +x livetube && ./livetube
 ```
 
-### 3. Source (Bun)
+> The binaries expect `yt-dlp` on the `PATH`. The Docker image ships with
+> `yt-dlp` (static) and `bun` (as yt-dlp's JS runtime) pre-installed.
 
-1. **Prerequisites**: Install [Bun](https://bun.com/).
+### 3. Source (Rust)
 
-   ```bash
-   curl -fsSL https://bun.com/install | bash
-   ```
+1. **Prerequisites**: Install [Rust](https://rustup.rs/) (stable).
 
 2. **Clone the Repository**:
 
@@ -73,16 +83,19 @@ curl -L https://github.com/P1N2O/livetube/releases/latest/download/livetube-linu
    git clone https://github.com/p1n2o/livetube.git && cd livetube
    ```
 
-3. **Install Dependencies**:
+3. **Build and Run**:
 
    ```bash
-   bun install
+   cargo build --release
+   ./target/release/livetube
    ```
 
-4. **Build and Run**:
+   To cross-compile all release binaries (requires
+   [zig](https://ziglang.org/) and
+   [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild)):
 
    ```bash
-   bun run build && && cd dist && chmod +x livetube-linux-x64 && ./livetube-linux-x64
+   ./script/build.sh
    ```
 
 ## Usage
@@ -113,7 +126,8 @@ curl http://localhost:3000/health
 
 Set environment variables to configure the server:
 
-- `HOST`: Binding host (default: `127.0.0.1`)
+- `HOSTNAME`: Binding host (default: `localhost`; `HOST` is accepted as an
+  alias)
 - `PORT`: Port number (default: `3000`)
 - `API_KEY`: Optional API key for authentication (Bearer token or User-Agent
   substring)
@@ -121,6 +135,16 @@ Set environment variables to configure the server:
   disable)
 - `CUSTOM_X_HEADER`: Custom header key to pass to `x` requests
 - `CORS_ORIGIN`: Allowed CORS origins (default: `*`)
+
+Optional extras (not present in the original Bun version):
+
+- `YTDLP_JS_RUNTIME`: yt-dlp `--js-runtimes` value, e.g.
+  `bun:/usr/local/bin/bun`. Defaults to `bun:/usr/local/bin/bun` when that
+  binary exists, otherwise the flag is omitted and yt-dlp falls back to its
+  bundled interpreter. Set to an empty string to disable.
+- `YTDLP_TIMEOUT`: Kill yt-dlp after N seconds (default: `0` = disabled).
+- `REQUEST_TIMEOUT`: Timeout for direct-URL validation requests in seconds
+  (default: `0` = disabled).
 
 ### Authentication
 
@@ -136,23 +160,38 @@ If `API_KEY` is set, requests must include:
 1. **Clone and Install**:
 
    ```bash
-   git clone https://github.com/p1n2o/livetube.git && cd livetube && bun install
+   git clone https://github.com/p1n2o/livetube.git && cd livetube
    ```
 
 2. **Development Tasks**:
-   - `bun run dev`: Run in watch mode
+   - `cargo run`: Run the server (with `RUST_LOG`-free console logging)
+   - `cargo test`: Run the unit test suite
+   - `cargo clippy`: Lint
+   - `cargo fmt`: Format
 
 ### Project Structure
 
 ```
 .
-├── index.ts          # Main application entry point
-├── package.json      # Package manifest
-├── bun.lock          # Dependency lock file
-├── build.ts          # Build script for binaries
-├── Dockerfile        # Multi-stage Docker build
-├── README.md         # This file
-└── .vscode/          # VS Code settings
+├── src/              # Rust source
+│   ├── main.rs       # Entry point, routing, query-param collection
+│   ├── state.rs      # Environment configuration and shared state
+│   ├── middleware.rs # Logger, compression, CORS, auth (hono-compatible)
+│   ├── resolvers.rs  # Stream validation and yt-dlp extraction
+│   ├── cache.rs      # TTL cache with in-flight deduplication
+│   ├── params.rs     # URLSearchParams-compatible query parsing
+│   └── fmt.rs        # Output formatting (@std/fmt-compatible)
+├── Cargo.toml        # Package manifest
+├── Dockerfile        # Multi-stage static-musl Docker build
+├── script/
+│   ├── build.sh      # Cross-compile all release binaries
+│   └── release.sh    # Create and push a release tag
+├── .github/
+│   ├── workflows/
+│   │   ├── release.yml  # Tag-triggered release pipeline (binaries + image)
+│   │   └── ci.yml       # PR/push checks
+│   └── dependabot.yml   # Cargo + GitHub Actions updates
+└── README.md         # This file
 ```
 
 ### Contributing

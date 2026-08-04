@@ -1,0 +1,15 @@
+target
+node_modules
+dist
+.git
+.github
+script
+*.md
+AGENTS.md
+LICENSE
+.env
+.env.*
+!.env.example
+compose.yaml
+docker-compose*.yml
+Dockerfile

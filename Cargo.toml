@@ -1,0 +1,23 @@
+[package]
+name = "livetube"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Lightweight web server that resolves live stream URLs to HLS format with fallback support"
+repository = "https://github.com/P1N2O/livetube"
+authors = ["Manuel Pinto <manuel@pinto.dev>"]
+
+[dependencies]
+axum = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+libc = "0.2"
+percent-encoding = "2"
+rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time", "net", "signal", "sync"] }
+url = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

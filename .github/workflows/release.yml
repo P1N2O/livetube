@@ -10,48 +10,65 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
+  test:
+    name: Test
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  build:
+    name: Build (${{ matrix.outfile }})
+    runs-on: ubuntu-latest
+    needs: test
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: bun-linux-x64
+          - target: x86_64-unknown-linux-musl
             outfile: livetube-linux-x64
-          - target: bun-linux-arm64
+          - target: aarch64-unknown-linux-musl
             outfile: livetube-linux-arm64
-          - target: bun-darwin-x64
+          - target: x86_64-apple-darwin
             outfile: livetube-macos-x64
-          - target: bun-darwin-arm64
+          - target: aarch64-apple-darwin
             outfile: livetube-macos-arm64
-          - target: bun-windows-x64
+          - target: x86_64-pc-windows-gnu
             outfile: livetube-windows-x64.exe
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: latest
+          targets: ${{ matrix.target }}
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
 
       - name: Build binary
         run: |
-          bun build --compile --minify \
-            --target=${{ matrix.target }} \
-            ./index.ts \
-            --outfile ${{ matrix.outfile }}
-
-      # - name: Install UPX
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y upx-ucl
+          cargo zigbuild --release --target ${{ matrix.target }} --bin livetube
+          cp target/${{ matrix.target }}/release/livetube ${{ matrix.outfile }}
 
       - name: Install UPX
         run: |
