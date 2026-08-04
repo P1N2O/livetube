@@ -148,11 +148,16 @@ jobs:
         with:
           path: dist
           pattern: livetube-linux-*
+          merge-multiple: true
 
       - name: Rename binaries for arch-aware COPY
         run: |
           mv dist/livetube-linux-x64 dist/livetube-amd64
           mv dist/livetube-linux-arm64 dist/livetube-arm64
+          # Guard against directories sneaking in (COPY of a dir would make
+          # /usr/local/bin/livetube a directory and break the entrypoint).
+          test -f dist/livetube-amd64
+          test -f dist/livetube-arm64
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v4
