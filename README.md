@@ -1,7 +1,6 @@
 # LiveTube
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/P1N2O/livetube/actions/workflows/ci.yml/badge.svg)](https://github.com/P1N2O/livetube/actions/workflows/ci.yml)
 
 Generate HLS live streams with fallback support. LiveTube is a lightweight web
 server that resolves live stream URLs to HLS (HTTP Live Streaming) format using
@@ -188,8 +187,7 @@ If `API_KEY` is set, requests must include:
 │   └── release.sh    # Create and push a release tag
 ├── .github/
 │   ├── workflows/
-│   │   ├── release.yml  # Tag-triggered release pipeline (binaries + image)
-│   │   └── ci.yml       # PR/push checks
+│   │   └── release.yml  # Tag-triggered release pipeline (binaries + image)
 │   └── dependabot.yml   # Cargo + GitHub Actions updates
 └── README.md         # This file
 ```

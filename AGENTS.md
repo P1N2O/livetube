@@ -129,14 +129,13 @@ The build script (and CI) compiles binaries for:
 
 ## CI/CD
 
-GitHub Actions workflows:
+GitHub Actions workflow (`.github/workflows/release.yml`) — triggers on version tags (`v*.*.*`):
 
-- `.github/workflows/ci.yml` — format, clippy and tests on pushes/PRs.
-- `.github/workflows/release.yml` — on version tags (`v*.*.*`):
-  - Cross-compiles static binaries for all platforms (cargo-zigbuild)
-  - Compresses with UPX
-  - Creates GitHub releases with artifacts
-  - Builds and pushes multi-arch Docker images to GHCR
+- Runs tests and clippy
+- Cross-compiles static binaries for all platforms (cargo-zigbuild)
+- Compresses with UPX
+- Creates GitHub releases with artifacts
+- Builds and pushes multi-arch Docker images to GHCR
 
 ## Development Notes
 
