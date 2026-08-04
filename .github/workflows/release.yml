@@ -30,23 +30,41 @@ jobs:
 
   build:
     name: Build (${{ matrix.outfile }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     needs: test
 
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Linux: static musl via cargo-zigbuild (cross from ubuntu)
           - target: x86_64-unknown-linux-musl
             outfile: livetube-linux-x64
+            os: ubuntu-latest
+            exe: ""
+            toolchain: zigbuild
           - target: aarch64-unknown-linux-musl
             outfile: livetube-linux-arm64
+            os: ubuntu-latest
+            exe: ""
+            toolchain: zigbuild
+          # macOS: native build on an Apple Silicon runner (same SDK for both)
           - target: x86_64-apple-darwin
             outfile: livetube-macos-x64
+            os: macos-14
+            exe: ""
+            toolchain: native
           - target: aarch64-apple-darwin
             outfile: livetube-macos-arm64
-          - target: x86_64-pc-windows-gnu
+            os: macos-14
+            exe: ""
+            toolchain: native
+          # Windows: native MSVC build
+          - target: x86_64-pc-windows-msvc
             outfile: livetube-windows-x64.exe
+            os: windows-latest
+            exe: ".exe"
+            toolchain: native
 
     steps:
       - name: Checkout
@@ -58,19 +76,27 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Setup Zig
+        if: matrix.toolchain == 'zigbuild'
         uses: goto-bus-stop/setup-zig@v2
 
       - name: Install cargo-zigbuild
+        if: matrix.toolchain == 'zigbuild'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild
 
       - name: Build binary
         run: |
-          cargo zigbuild --release --target ${{ matrix.target }} --bin livetube
-          cp target/${{ matrix.target }}/release/livetube ${{ matrix.outfile }}
+          if [ "${{ matrix.toolchain }}" = "zigbuild" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }} --bin livetube
+          else
+            cargo build --release --target ${{ matrix.target }} --bin livetube
+          fi
+          cp target/${{ matrix.target }}/release/livetube${{ matrix.exe }} ${{ matrix.outfile }}
+        shell: bash
 
       - name: Install UPX
+        if: runner.os == 'Linux'
         run: |
           set -e
           # Detect architecture
@@ -97,8 +123,9 @@ jobs:
           upx --version
 
       - name: Compress binary with UPX
+        if: runner.os == 'Linux'
         run: |
-          upx --best --lzma "${{ matrix.outfile }}" || echo "UPX not available or compression failed"
+          upx --best --lzma "${{ matrix.outfile }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -108,7 +135,7 @@ jobs:
           retention-days: 1
 
   docker:
-    name: Build & Push Docker image
+    name: Build & Push Docker image (linux)
     runs-on: ubuntu-latest
 
     steps:
@@ -143,6 +170,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          # Linux only (amd64 + arm64)
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
