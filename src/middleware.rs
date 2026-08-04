@@ -350,6 +350,11 @@ fn bad_request() -> Response {
 }
 
 pub async fn auth_mw(State(state): State<ArcState>, req: Request, next: Next) -> Response {
+    // `/health` is always open, even when an API key is configured.
+    if req.uri().path() == "/health" {
+        return next.run(req).await;
+    }
+
     let Some(api_key) = &state.api_key else {
         return next.run(req).await;
     };
@@ -422,6 +427,7 @@ mod tests {
     {
         Router::new()
             .route("/", any(handler))
+            .route("/health", any(plain_ok))
             .layer(axum::middleware::from_fn_with_state(state.clone(), auth_mw))
             .layer(axum::middleware::from_fn_with_state(state.clone(), cors_mw))
             .layer(axum::middleware::from_fn(compress_mw))
@@ -615,6 +621,22 @@ mod tests {
                 Request::builder()
                     .uri("/")
                     .header(header::AUTHORIZATION, "Bearer secret123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn auth_is_bypassed_on_health_endpoint() {
+        // Even with an API key set and no credentials, /health must stay open.
+        let app = test_app(test_state(Some("secret123")), plain_ok);
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
                     .body(Body::empty())
                     .unwrap(),
             )
