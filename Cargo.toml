@@ -13,7 +13,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 libc = "0.2"
 percent-encoding = "2"
-rand = "0.9"
+rand = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time", "net", "signal", "sync"] }
