@@ -89,6 +89,15 @@ curl -L https://github.com/P1N2O/livetube/releases/latest/download/livetube-linu
    ./target/release/livetube
    ```
 
+   To build the Docker image locally, cross-compile the binaries first (the
+   image packages `dist/livetube-amd64` / `dist/livetube-arm64` rather than
+   compiling inside Docker):
+
+   ```bash
+   ./script/build.sh        # builds all targets, not just linux
+   docker build --build-arg TARGETARCH=amd64 -t livetube .
+   ```
+
    To cross-compile all release binaries (requires
    [zig](https://ziglang.org/) and
    [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild)):
@@ -181,7 +190,7 @@ If `API_KEY` is set, requests must include:
 │   ├── params.rs     # URLSearchParams-compatible query parsing
 │   └── fmt.rs        # Output formatting (@std/fmt-compatible)
 ├── Cargo.toml        # Package manifest
-├── Dockerfile        # Multi-stage static-musl Docker build
+├── Dockerfile        # Runtime image (bun base) packaging prebuilt binaries
 ├── script/
 │   ├── build.sh      # Cross-compile all release binaries
 │   └── release.sh    # Create and push a release tag

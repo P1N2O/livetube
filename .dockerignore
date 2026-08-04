@@ -1,6 +1,8 @@
 target
 node_modules
-dist
+dist/*
+!dist/livetube-amd64
+!dist/livetube-arm64
 .git
 .github
 script

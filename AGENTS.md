@@ -40,7 +40,7 @@
 │   ├── params.rs     # URLSearchParams-compatible query parsing
 │   └── fmt.rs        # Output formatting (@std/fmt-compatible)
 ├── Cargo.toml        # Package manifest
-├── Dockerfile        # Multi-stage static-musl Docker build
+├── Dockerfile        # Runtime image (bun base) packaging prebuilt binaries
 ├── compose.yaml      # Docker Compose configuration
 ├── README.md         # Project documentation
 ├── LICENSE           # License file
