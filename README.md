@@ -51,9 +51,9 @@ services:
       - "3000:3000"
     restart: unless-stopped
     environment:
-      CACHE_DIR: /home/livetube/.cache/livetube
+      CACHE_DIR: /cache
     volumes:
-      - livetube-cache:/home/livetube/.cache/livetube
+      - livetube-cache:/cache
 
 volumes:
   livetube-cache:
@@ -157,7 +157,8 @@ Caching extras (not present in the original Bun version):
 - `CACHE_NEGATIVE_TTL`: How long failed lookups are cached, in minutes
   (default: `2`, set to `0` to disable). Dead streams recover quickly instead
   of being memoized for the full TTL.
-- `CACHE_DIR`: Shared cache root (default: `~/.cache/livetube`). Drives both
+- `CACHE_DIR`: Shared cache root (default: `$HOME/cache`; `/cache` in the
+  Docker image). Drives both
   the yt-dlp web cache (`--cache-dir`) and a persistent redb database
   (`$CACHE_DIR/redb/cache.redb`) that survives restarts. Set to an empty
   string to keep everything in memory.

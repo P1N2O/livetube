@@ -92,14 +92,15 @@ impl Config {
         ));
 
         // Shared cache root: drives yt-dlp `--cache-dir` and the redb file.
-        // Explicitly empty disables persistence; unset defaults to ~/.cache/livetube.
+        // Explicitly empty disables persistence; unset defaults to $HOME/cache
+        // (the container image defaults this to /cache via ENV).
         let cache_dir = match std::env::var("CACHE_DIR") {
             Ok(v) if v.is_empty() => None,
             Ok(v) => Some(PathBuf::from(v)),
             Err(_) => std::env::var("HOME")
                 .ok()
                 .filter(|h| !h.is_empty())
-                .map(|h| PathBuf::from(h).join(".cache").join("livetube")),
+                .map(|h| PathBuf::from(h).join("cache")),
         };
 
         let cache_redis_url = env("CACHE_REDIS_URL");

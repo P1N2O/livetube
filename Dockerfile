@@ -26,8 +26,11 @@ RUN apk add --no-cache curl \
       -o /usr/local/bin/yt-dlp \
  && chmod +x /usr/local/bin/yt-dlp
 
-# Non-root user for security
-RUN addgroup -S livetube && adduser -S livetube -G livetube
+# Non-root user for security; /cache is the default cache root (CACHE_DIR),
+# writable by the livetube user.
+RUN addgroup -S livetube && adduser -S livetube -G livetube \
+ && mkdir -p /cache \
+ && chown livetube:livetube /cache
 
 # TARGETARCH is "amd64" | "arm64" — the prebuilt binary is named dist/livetube-<TARGETARCH>.
 # Installed as root, before dropping privileges.
@@ -38,6 +41,7 @@ RUN chmod +x /usr/local/bin/livetube
 USER livetube
 
 ENV PORT=3000
+ENV CACHE_DIR=/cache
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/livetube"]

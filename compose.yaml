@@ -7,11 +7,9 @@ services:
       - "3000:3000"
     restart: unless-stopped
     environment:
-      # Shared cache root: yt-dlp web cache + persistent redb database
-      CACHE_DIR: /home/livetube/.cache/livetube
+      CACHE_DIR: /cache
     volumes:
-      # Persist the cache across restarts/recreates
-      - livetube-cache:/home/livetube/.cache/livetube
+      - livetube-cache:/cache
 
 volumes:
   livetube-cache:

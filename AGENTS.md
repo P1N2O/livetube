@@ -72,7 +72,7 @@
 |CUSTOM_X_HEADER|custom-header|Custom header parameter name|
 |CORS_ORIGIN|\*|Allowed CORS origins|
 |CACHE_NEGATIVE_TTL|2|Cache failed lookups for N minutes (0 disables)|
-|CACHE_DIR|~/.cache/livetube|Shared cache root: yt-dlp `--cache-dir` + persistent redb|
+|CACHE_DIR|$HOME/cache (/cache in Docker)|Shared cache root: yt-dlp `--cache-dir` + persistent redb|
 |CACHE_REDIS_URL|-|Shared Redis cache across instances (overrides redb)|
 |YTDLP_JS_RUNTIME|auto|yt-dlp `--js-runtimes` value (auto-detects bun)|
 |YTDLP_TIMEOUT|0|Kill yt-dlp after N seconds (0 = disabled)|
