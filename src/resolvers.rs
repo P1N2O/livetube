@@ -3,6 +3,7 @@
 //! (yt-dlp `-g -f best` extraction for video IDs / channel handles).
 
 use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method};
 use url::Url;
@@ -160,6 +161,11 @@ async fn fetch_stream_url(url: &str, state: &AppState) -> Option<String> {
     if let Some(js_runtime) = &state.ytdlp_js_runtime {
         command.args(["--js-runtimes", js_runtime]);
     }
+    // Point yt-dlp's web/API cache at CACHE_DIR so repeated extractions of
+    // the same URL skip network round-trips (persisted via the volume).
+    if let Some(cache_dir) = &state.ytdlp_cache_dir {
+        command.args(["--cache-dir", cache_dir.to_str().unwrap_or_default()]);
+    }
 
     let output = match state.ytdlp_timeout {
         Some(t) => match tokio::time::timeout(t, command.output()).await {
@@ -226,6 +232,50 @@ pub enum ParamKind {
     Direct,
 }
 
+/// Cache lifetime for a resolution result:
+///   - successes: `MEMOIZATION_TTL`, capped by the URL's own `expire` token;
+///   - failures: `CACHE_NEGATIVE_TTL` (short).
+fn cache_ttl(state: &AppState, value: &Option<String>) -> Duration {
+    match value {
+        Some(url) => match url_expiry(url) {
+            Some(expire_unix) => {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                state
+                    .positive_ttl
+                    .min(Duration::from_secs(expire_unix.saturating_sub(now)))
+            }
+            None => state.positive_ttl,
+        },
+        None => state.negative_ttl.unwrap_or_default(),
+    }
+}
+
+/// Extract the `expire` token from a stream URL. YouTube/Google HLS manifests
+/// embed it either as a query parameter (`?expire=1785868364`) or as a path
+/// segment (`/expire/1785868364/`).
+fn url_expiry(url: &str) -> Option<u64> {
+    let parsed = Url::parse(url).ok()?;
+    if let Some(v) = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "expire")
+        .and_then(|(_, v)| v.parse().ok())
+    {
+        return Some(v);
+    }
+    let segments: Vec<&str> = parsed.path_segments()?.collect();
+    for (i, segment) in segments.iter().enumerate() {
+        if *segment == "expire" {
+            if let Some(v) = segments.get(i + 1).and_then(|s| s.parse().ok()) {
+                return Some(v);
+            }
+        }
+    }
+    None
+}
+
 /// Resolve one parameter to an HLS URL, memoized with the same cache keys as
 /// the JS port (`x:{raw}` for direct URLs, `v:{url}` for yt-dlp lookups).
 pub async fn resolve_hls(state: &Arc<AppState>, param: &Param) -> Option<String> {
@@ -236,7 +286,9 @@ pub async fn resolve_hls(state: &Arc<AppState>, param: &Param) -> Option<String>
                 let state = Arc::clone(state);
                 let param = param.clone();
                 c.get_or_compute(key, move || async move {
-                    validate_stream(&param.value, &state).await
+                    let value = validate_stream(&param.value, &state).await;
+                    let ttl = cache_ttl(&state, &value);
+                    (value, ttl)
                 })
             });
             match cached {
@@ -254,10 +306,11 @@ pub async fn resolve_hls(state: &Arc<AppState>, param: &Param) -> Option<String>
                 let key = format!("v:{url}");
                 let state = Arc::clone(state);
                 let url = url.clone();
-                c.get_or_compute(
-                    key,
-                    move || async move { fetch_stream_url(&url, &state).await },
-                )
+                c.get_or_compute(key, move || async move {
+                    let value = fetch_stream_url(&url, &state).await;
+                    let ttl = cache_ttl(&state, &value);
+                    (value, ttl)
+                })
             });
             match cached {
                 Some(fut) => fut.await,
@@ -300,4 +353,108 @@ pub fn current_rss_bytes() -> u64 {
         }
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expire_from_query_param() {
+        assert_eq!(
+            url_expiry("https://x/y?expire=1785868364&a=1"),
+            Some(1785868364)
+        );
+    }
+
+    #[test]
+    fn expire_from_path_segment() {
+        assert_eq!(
+            url_expiry("https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1785868364/ei/abc"),
+            Some(1785868364)
+        );
+    }
+
+    #[test]
+    fn no_expire_token() {
+        assert_eq!(url_expiry("https://example.com/live.m3u8"), None);
+        assert_eq!(url_expiry("not a url"), None);
+        assert_eq!(url_expiry("https://x/?expire=abc"), None);
+    }
+
+    #[tokio::test]
+    async fn negative_ttl_when_disabled() {
+        let cfg = crate::state::Config {
+            hostname: "localhost".into(),
+            port: 3000,
+            api_key: None,
+            custom_header_key: "custom-header".into(),
+            memoization_ttl: Some(Duration::from_secs(1800)),
+            cache_negative_ttl: None,
+            cache_dir: None,
+            cache_redis_url: None,
+            cors_origin: "*".into(),
+            ytdlp_js_runtime: None,
+            ytdlp_timeout: None,
+            request_timeout: None,
+        };
+        let state = crate::state::AppState::new(&cfg);
+        // No negative caching configured: failures get zero lifetime.
+        assert_eq!(cache_ttl(&state, &None), Duration::ZERO);
+        // Positive entries use the full TTL when no expire token is present.
+        assert_eq!(
+            cache_ttl(&state, &Some("https://example.com/live.m3u8".into())),
+            Duration::from_secs(1800)
+        );
+    }
+
+    #[tokio::test]
+    async fn positive_ttl_capped_by_expiry() {
+        let cfg = crate::state::Config {
+            hostname: "localhost".into(),
+            port: 3000,
+            api_key: None,
+            custom_header_key: "custom-header".into(),
+            memoization_ttl: Some(Duration::from_secs(1800)),
+            cache_negative_ttl: Some(Duration::from_secs(120)),
+            cache_dir: None,
+            cache_redis_url: None,
+            cors_origin: "*".into(),
+            ytdlp_js_runtime: None,
+            ytdlp_timeout: None,
+            request_timeout: None,
+        };
+        let state = crate::state::AppState::new(&cfg);
+
+        // Expire far in the future: TTL wins (capped at 30 min).
+        let far = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 7200;
+        assert_eq!(
+            cache_ttl(&state, &Some(format!("https://x/expire/{far}/"))),
+            Duration::from_secs(1800)
+        );
+
+        // Expire in 60s: URL expiry wins.
+        let soon = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 60;
+        let ttl = cache_ttl(&state, &Some(format!("https://x/expire/{soon}/")));
+        assert!(ttl <= Duration::from_secs(60) && ttl > Duration::from_secs(50));
+
+        // Already expired: nothing cached.
+        let past = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .saturating_sub(10);
+        assert_eq!(
+            cache_ttl(&state, &Some(format!("https://x/expire/{past}/"))),
+            Duration::ZERO
+        );
+    }
 }

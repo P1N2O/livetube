@@ -49,6 +49,14 @@ services:
     container_name: livetube
     ports:
       - "3000:3000"
+    restart: unless-stopped
+    environment:
+      CACHE_DIR: /home/livetube/.cache/livetube
+    volumes:
+      - livetube-cache:/home/livetube/.cache/livetube
+
+volumes:
+  livetube-cache:
 ```
 
 ### 2. Pre-compiled Binaries
@@ -139,12 +147,25 @@ Set environment variables to configure the server:
 - `PORT`: Port number (default: `3000`)
 - `API_KEY`: Optional API key for authentication (Bearer token or User-Agent
   substring)
-- `MEMOIZATION_TTL`: Cache time-to-live in minutes (default: `30`, set to `0` to
-  disable)
+- `MEMOIZATION_TTL`: Cache time-to-live for successful lookups in minutes
+  (default: `30`, set to `0` to disable)
 - `CUSTOM_X_HEADER`: Custom header key to pass to `x` requests
 - `CORS_ORIGIN`: Allowed CORS origins (default: `*`)
 
-Optional extras (not present in the original Bun version):
+Caching extras (not present in the original Bun version):
+
+- `CACHE_NEGATIVE_TTL`: How long failed lookups are cached, in minutes
+  (default: `2`, set to `0` to disable). Dead streams recover quickly instead
+  of being memoized for the full TTL.
+- `CACHE_DIR`: Shared cache root (default: `~/.cache/livetube`). Drives both
+  the yt-dlp web cache (`--cache-dir`) and a persistent redb database
+  (`$CACHE_DIR/redb/cache.redb`) that survives restarts. Set to an empty
+  string to keep everything in memory.
+- `CACHE_REDIS_URL`: Optional Redis URL (e.g. `redis://localhost:6379/0`) for
+  a shared cache across multiple instances (overrides the redb backend;
+  entries expire via SETEX).
+
+Other extras:
 
 - `YTDLP_JS_RUNTIME`: yt-dlp `--js-runtimes` value, e.g.
   `bun:/usr/local/bin/bun`. Defaults to `bun:/usr/local/bin/bun` when that
@@ -153,6 +174,22 @@ Optional extras (not present in the original Bun version):
 - `YTDLP_TIMEOUT`: Kill yt-dlp after N seconds (default: `0` = disabled).
 - `REQUEST_TIMEOUT`: Timeout for direct-URL validation requests in seconds
   (default: `0` = disabled).
+
+### Caching
+
+Successful resolutions are memoized for `MEMOIZATION_TTL` (default 30
+minutes), capped by the stream URL's own `expire` token when present so dead
+manifests are never served. Failed lookups are cached for only
+`CACHE_NEGATIVE_TTL` (default 2 minutes). Results live in memory (with
+in-flight deduplication) and are optionally persisted:
+
+- **redb** (default, under `CACHE_DIR`) — survives restarts; single instance
+  per database file;
+- **Redis** (`CACHE_REDIS_URL`) — shared across instances; recommended when
+  running more than one replica.
+
+The Docker Compose file mounts a named volume at `CACHE_DIR` so the cache
+(redb + yt-dlp web cache) persists across container recreates.
 
 ### Authentication
 

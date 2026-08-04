@@ -14,10 +14,13 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 libc = "0.2"
 percent-encoding = "2"
 rand = "0.9"
+redb = "4.1.0"
+redis = { version = "1.5.0", features = ["connection-manager", "tokio-comp"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time", "net", "signal", "sync"] }
 url = "2"
 
 [dev-dependencies]
+tempfile = "3.27.0"
 tower = { version = "0.5", features = ["util"] }

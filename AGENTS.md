@@ -68,9 +68,12 @@
 |HOSTNAME|localhost|Server binding host (`HOST` accepted as alias)|
 |PORT|3000|Server port|
 |API_KEY|-|Optional API key for authentication|
-|MEMOIZATION_TTL|30|Cache TTL in minutes (0 to disable)|
+|MEMOIZATION_TTL|30|Cache TTL in minutes for successful lookups (0 to disable)|
 |CUSTOM_X_HEADER|custom-header|Custom header parameter name|
 |CORS_ORIGIN|\*|Allowed CORS origins|
+|CACHE_NEGATIVE_TTL|2|Cache failed lookups for N minutes (0 disables)|
+|CACHE_DIR|~/.cache/livetube|Shared cache root: yt-dlp `--cache-dir` + persistent redb|
+|CACHE_REDIS_URL|-|Shared Redis cache across instances (overrides redb)|
 |YTDLP_JS_RUNTIME|auto|yt-dlp `--js-runtimes` value (auto-detects bun)|
 |YTDLP_TIMEOUT|0|Kill yt-dlp after N seconds (0 = disabled)|
 |REQUEST_TIMEOUT|0|Stream validation timeout in seconds (0 = disabled)|
@@ -104,7 +107,9 @@ Health check endpoint. Returns `{"status": "ok"}`.
 
 1. **HLS Stream Resolution**: Automatically resolves video IDs or channel URLs to HLS manifest URLs.
 2. **Fallback Support**: Validates streams and provides fallbacks if primary sources fail.
-3. **Caching**: TTL-based memoization to reduce API calls.
+3. **Caching**: TTL-based memoization (split positive/negative TTLs,
+   URL-expiry aware) with in-memory single-flight, optional redb persistence
+   (`CACHE_DIR`) and shared Redis cache (`CACHE_REDIS_URL`).
 4. **Multi-Platform Binaries**: Pre-compiled executables for Linux, macOS, and Windows.
 5. **Docker Support**: Multi-arch Docker images (static musl binaries, alpine runtime).
 6. **API Key Protection**: Optional Bearer token or User-Agent authentication.
